@@ -1,0 +1,158 @@
+import { StyleSheet, StatusBar } from 'react-native';
+
+export const lightTheme = {
+  bg: '#FAF9F6',
+  card: '#FFFFFF',
+  cardSelected: '#F5F4F0',
+  text: '#2C2C2C',
+  textTitle: '#1E1E1E',
+  textSecondary: '#444444',
+  textMuted: '#888888',
+  border: '#E5E4E2',
+  cardBorder: '#EAEAEA',
+  badgeBg: '#EFEFEF',
+  divider: '#D4D0C8',
+  disabled: '#CCCCCC',
+  danger: '#DC2626',
+};
+
+export const darkTheme: typeof lightTheme = {
+  bg: '#161616',
+  card: '#222222',
+  cardSelected: '#2C2A26',
+  text: '#E5E4E2',
+  textTitle: '#FAF9F6',
+  textSecondary: '#BDBDBD',
+  textMuted: '#888888',
+  border: '#2E2E2E',
+  cardBorder: '#303030',
+  badgeBg: '#2E2E2E',
+  divider: '#44403C',
+  disabled: '#444444',
+  danger: '#EF4444',
+};
+
+export type Theme = typeof lightTheme;
+
+export const getStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.bg, paddingTop: StatusBar.currentHeight },
+    header: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      paddingHorizontal: 12, paddingVertical: 12, borderBottomWidth: 1, borderColor: theme.border,
+      minHeight: 60,
+    },
+    headerTitle: { fontSize: 22, fontWeight: '700', color: theme.text, fontFamily: 'serif', paddingLeft: 4 },
+    editorHeaderTitle: { fontSize: 18, fontWeight: '600', color: theme.text, fontFamily: 'serif', textAlign: 'center' },
+    saveStatusText: { fontSize: 11, color: theme.textMuted, fontStyle: 'italic', marginTop: 1 },
+    headerRightActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    iconBtn: { padding: 8, borderRadius: 20 },
+    primaryBtn: { backgroundColor: theme.text, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6 },
+    primaryBtnText: { color: theme.bg, fontWeight: '600' },
+    tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderColor: theme.border, backgroundColor: theme.card },
+    tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderColor: 'transparent' },
+    activeTab: { borderColor: theme.text },
+    tabText: { fontSize: 15, color: theme.textMuted, fontWeight: '500' },
+    activeTabText: { color: theme.text, fontWeight: '700' },
+    editor: { flex: 1, padding: 16 },
+    titleInput: {
+      fontSize: 20, fontWeight: '600', borderBottomWidth: 1, borderColor: theme.border,
+      paddingVertical: 8, marginBottom: 12, fontFamily: 'serif', color: theme.textTitle,
+    },
+    subtitleInput: {
+      fontSize: 15, borderBottomWidth: 1, borderColor: theme.cardBorder,
+      paddingVertical: 8, marginBottom: 16, fontFamily: 'serif', color: theme.textSecondary,
+    },
+    sectionLabel: {
+      fontSize: 13, fontWeight: '700', color: theme.textMuted,
+      textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10,
+    },
+    fragmentRow: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      marginBottom: 4, paddingVertical: 0, height: 28,
+    },
+    fragmentLabel: { color: theme.textSecondary, fontSize: 13 },
+    compactSwitch: { transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] },
+    contentInput: {
+      flex: 1, minHeight: 300, fontSize: 16, lineHeight: 24,
+      fontFamily: 'serif', color: theme.text,
+    },
+    list: { padding: 16 },
+    emptyText: { textAlign: 'center', color: theme.textMuted, marginTop: 32 },
+    emptyReaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+    card: {
+      backgroundColor: theme.card, padding: 16, borderRadius: 8,
+      marginBottom: 12, borderWidth: 1, borderColor: theme.cardBorder,
+    },
+    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+    cardTitle: { fontSize: 18, fontWeight: '600', fontFamily: 'serif', color: theme.textTitle, flex: 1 },
+    badge: {
+      fontSize: 11, backgroundColor: theme.badgeBg, color: theme.textSecondary,
+      paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4,
+    },
+    cardContent: { fontSize: 15, color: theme.textSecondary, lineHeight: 22, fontFamily: 'serif' },
+    pickerCard: {
+      flexDirection: 'row', alignItems: 'center', backgroundColor: theme.card,
+      padding: 14, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: theme.cardBorder, gap: 12,
+    },
+    pickerCardSelected: { borderColor: theme.text, backgroundColor: theme.cardSelected },
+    pickerItemTitle: { fontSize: 16, fontWeight: '600', fontFamily: 'serif', color: theme.textTitle },
+    pickerItemPreview: { fontSize: 13, color: theme.textSecondary, marginTop: 2, fontFamily: 'serif' },
+    orderBadge: {
+      width: 26, height: 26, borderRadius: 13, backgroundColor: theme.text,
+      justifyContent: 'center', alignItems: 'center',
+    },
+    orderBadgeText: { color: theme.bg, fontSize: 12, fontWeight: '700' },
+    orderRow: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      backgroundColor: theme.card, paddingVertical: 10, paddingHorizontal: 14,
+      borderRadius: 6, marginBottom: 6, borderWidth: 1, borderColor: theme.cardBorder,
+    },
+    orderRowText: { fontSize: 15, fontFamily: 'serif', color: theme.textTitle, flex: 1 },
+    orderButtons: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    orderBtn: { padding: 4 },
+    bookPage: { flex: 1, paddingHorizontal: 28, paddingTop: 28 },
+    bookPageScroll: { paddingBottom: 40 },
+    bookPoemTitle: {
+      fontSize: 24, fontWeight: '700', fontFamily: 'serif', color: theme.textTitle,
+      textAlign: 'center', marginBottom: 14,
+    },
+    bookDivider: {
+      width: 40, height: 2, backgroundColor: theme.divider,
+      alignSelf: 'center', marginBottom: 28,
+    },
+    bookPoemContent: { fontSize: 17, lineHeight: 28, fontFamily: 'serif', color: theme.text },
+    readerFooter: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: 1, borderColor: theme.border,
+      backgroundColor: theme.bg,
+    },
+    pageNavBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 6 },
+    pageNavText: { fontSize: 14, fontWeight: '600', color: theme.text },
+    pageNavDisabled: { color: theme.disabled },
+    pageIndicator: { fontSize: 13, color: theme.textMuted, fontFamily: 'serif', fontStyle: 'italic' },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-start', alignItems: 'flex-end' },
+    dropdownMenu: {
+      backgroundColor: theme.card, borderRadius: 8, marginTop: (StatusBar.currentHeight || 24) + 50,
+      marginRight: 16, paddingVertical: 6, minWidth: 200, elevation: 5,
+      borderWidth: 1, borderColor: theme.cardBorder,
+    },
+    menuItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
+    menuItemText: { fontSize: 15, color: theme.text, fontWeight: '500' },
+    deleteText: { color: theme.danger },
+    searchFilterContainer: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, gap: 8 },
+    searchBar: {
+      flexDirection: 'row', alignItems: 'center', backgroundColor: theme.card,
+      borderWidth: 1, borderColor: theme.cardBorder, borderRadius: 8,
+      paddingHorizontal: 10, height: 38, gap: 8,
+    },
+    searchInput: { flex: 1, fontSize: 14, color: theme.text, fontFamily: 'serif', paddingVertical: 0 },
+    filterPills: { flexDirection: 'row', gap: 8 },
+    filterPill: {
+      paddingHorizontal: 12, paddingVertical: 4, borderRadius: 14,
+      borderWidth: 1, borderColor: theme.border, backgroundColor: 'transparent',
+    },
+    filterPillActive: { backgroundColor: theme.text, borderColor: theme.text },
+    filterPillText: { fontSize: 12, color: theme.textSecondary, fontWeight: '500' },
+    filterPillTextActive: { color: theme.bg, fontWeight: '600' },
+  });
