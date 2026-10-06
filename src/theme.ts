@@ -57,7 +57,11 @@ export const getStyles = (theme: Theme) =>
     editor: { flex: 1, padding: 16 },
     titleInput: {
       fontSize: 20, fontWeight: '600', borderBottomWidth: 1, borderColor: theme.border,
-      paddingVertical: 8, marginBottom: 12, fontFamily: 'serif', color: theme.textTitle,
+      paddingVertical: 8, marginBottom: 6, fontFamily: 'serif', color: theme.textTitle,
+    },
+    statsText: {
+      fontSize: 12, color: theme.textMuted, fontFamily: 'serif',
+      fontStyle: 'italic', marginBottom: 12,
     },
     subtitleInput: {
       fontSize: 15, borderBottomWidth: 1, borderColor: theme.cardBorder,
@@ -155,4 +159,37 @@ export const getStyles = (theme: Theme) =>
     filterPillActive: { backgroundColor: theme.text, borderColor: theme.text },
     filterPillText: { fontSize: 12, color: theme.textSecondary, fontWeight: '500' },
     filterPillTextActive: { color: theme.bg, fontWeight: '600' },
+    coverPageContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 32,
+      paddingBottom: 40,
+    },
+    coverTitle: {
+      fontSize: 30,
+      fontWeight: '700',
+      fontFamily: 'serif',
+      color: theme.textTitle,
+      textAlign: 'center',
+      marginBottom: 18,
+      letterSpacing: 0.5,
+    },
+    coverDescription: {
+      fontSize: 16,
+      lineHeight: 26,
+      fontFamily: 'serif',
+      fontStyle: 'italic',
+      color: theme.textSecondary,
+      textAlign: 'center',
+      marginTop: 8,
+    },
+    coverMeta: {
+      fontSize: 12,
+      fontFamily: 'serif',
+      color: theme.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: 1.5,
+      marginTop: 36,
+    },
   });

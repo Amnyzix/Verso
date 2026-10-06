@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   Switch, Modal, Pressable, Alert, Keyboard, BackHandler,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Poem, savePoem, updatePoem, deletePoem } from '../db';
-import { sharePoemAsTxt } from '../exportTxt';
+import { sharePoemAsTxt, sharePoemAsPdf } from '../exportTxt';
 import { Theme, getStyles } from '../theme';
 
 interface Props {
@@ -19,16 +19,69 @@ export default function PoemEditorView({ initialPoem, onClose, theme }: Props) {
 
   const cleanInitialTitle = initialPoem ? (initialPoem.title === 'Untitled' ? '' : initialPoem.title) : '';
   const initialFrag = initialPoem ? initialPoem.is_fragment === 1 : false;
+  const initialContent = initialPoem?.content ?? '';
 
   const [editingId, setEditingId] = useState<number | null>(initialPoem?.id ?? null);
   const [title, setTitle] = useState(cleanInitialTitle);
-  const [content, setContent] = useState(initialPoem?.content ?? '');
+  const [content, setContent] = useState(initialContent);
   const [isFragment, setIsFragment] = useState(initialFrag);
   const [initialState, setInitialState] = useState({
     title: cleanInitialTitle,
-    content: initialPoem?.content ?? '',
+    content: initialContent,
     isFragment: initialFrag,
   });
+
+  // --- Undo / Redo State ---
+  const [history, setHistory] = useState<string[]>([initialContent]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const isUndoRedoAction = useRef(false);
+
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
+
+  // Enregistre un snapshot dans l'historique 400ms après une pause de frappe
+  useEffect(() => {
+    if (isUndoRedoAction.current) {
+      isUndoRedoAction.current = false;
+      return;
+    }
+    if (content === history[historyIndex]) return;
+
+    const timer = setTimeout(() => {
+      setHistory((prev) => {
+        const sliced = prev.slice(0, historyIndex + 1);
+        return [...sliced, content];
+      });
+      setHistoryIndex((prev) => prev + 1);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [content, history, historyIndex]);
+
+  const handleUndo = () => {
+    if (!canUndo) return;
+    isUndoRedoAction.current = true;
+    const prevIndex = historyIndex - 1;
+    setHistoryIndex(prevIndex);
+    setContent(history[prevIndex]);
+  };
+
+  const handleRedo = () => {
+    if (!canRedo) return;
+    isUndoRedoAction.current = true;
+    const nextIndex = historyIndex + 1;
+    setHistoryIndex(nextIndex);
+    setContent(history[nextIndex]);
+  };
+
+  // --- Compteur de Vers (lignes non vides) et de Mots ---
+  const { lineCount, wordCount } = useMemo(() => {
+    const trimmed = content.trim();
+    if (!trimmed) return { lineCount: 0, wordCount: 0 };
+    const lines = trimmed.split('\n').filter((line) => line.trim().length > 0).length;
+    const words = trimmed.split(/\s+/).filter(Boolean).length;
+    return { lineCount: lines, wordCount: words };
+  }, [content]);
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [menuVisible, setMenuVisible] = useState(false);
@@ -113,6 +166,18 @@ export default function PoemEditorView({ initialPoem, onClose, theme }: Props) {
     });
   };
 
+  const handleSharePdf = async () => {
+    setMenuVisible(false);
+    if (!content.trim()) return;
+    await sharePoemAsPdf({
+      id: editingId ?? 0,
+      title: title.trim() || 'Untitled',
+      content,
+      is_fragment: isFragment ? 1 : 0,
+      created_at: new Date().toISOString(),
+    });
+  };
+
   const handleDelete = () => {
     setMenuVisible(false);
     if (editingId === null) return;
@@ -148,11 +213,39 @@ export default function PoemEditorView({ initialPoem, onClose, theme }: Props) {
         </View>
 
         <View style={styles.headerRightActions}>
+          {(isKeyboardVisible || canUndo || canRedo) && (
+            <>
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={handleUndo}
+                disabled={!canUndo}
+              >
+                <Ionicons
+                  name="arrow-undo-outline"
+                  size={20}
+                  color={canUndo ? theme.text : theme.disabled}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={handleRedo}
+                disabled={!canRedo}
+              >
+                <Ionicons
+                  name="arrow-redo-outline"
+                  size={20}
+                  color={canRedo ? theme.text : theme.disabled}
+                />
+              </TouchableOpacity>
+            </>
+          )}
+
           {isKeyboardVisible && (
             <TouchableOpacity style={styles.iconBtn} onPress={() => Keyboard.dismiss()}>
               <Ionicons name="chevron-down" size={24} color={theme.text} />
             </TouchableOpacity>
           )}
+
           <TouchableOpacity style={styles.iconBtn} onPress={() => setMenuVisible(true)}>
             <Ionicons name="ellipsis-vertical" size={22} color={theme.text} />
           </TouchableOpacity>
@@ -182,13 +275,19 @@ export default function PoemEditorView({ initialPoem, onClose, theme }: Props) {
         <TextInput
           style={[
             styles.titleInput,
-            isKeyboardVisible && { marginBottom: 6, paddingVertical: 4 },
+            isKeyboardVisible && { marginBottom: 4, paddingVertical: 4 },
           ]}
           placeholder="Title (optional)..."
           placeholderTextColor={theme.textMuted}
           value={title}
           onChangeText={setTitle}
         />
+
+        {/* Compteur discret de vers et de mots */}
+        <Text style={styles.statsText}>
+          {lineCount} {lineCount === 1 ? 'line' : 'lines'} · {wordCount}{' '}
+          {wordCount === 1 ? 'word' : 'words'}
+        </Text>
 
         <TextInput
           style={styles.contentInput}
@@ -214,6 +313,10 @@ export default function PoemEditorView({ initialPoem, onClose, theme }: Props) {
             <TouchableOpacity style={styles.menuItem} onPress={handleShare}>
               <Ionicons name="share-outline" size={20} color={theme.text} />
               <Text style={styles.menuItemText}>Share (.txt)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={handleSharePdf}>
+              <Ionicons name="book-outline" size={20} color={theme.text} />
+              <Text style={styles.menuItemText}>Share (.pdf)</Text>
             </TouchableOpacity>
             {editingId !== null && (
               <TouchableOpacity style={styles.menuItem} onPress={handleDelete}>

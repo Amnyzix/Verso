@@ -45,6 +45,11 @@ export async function initDatabase() {
       FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
       FOREIGN KEY (poem_id) REFERENCES poems(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
   `);
 }
 
@@ -151,3 +156,102 @@ export async function updateCollectionOrder(collectionId: number, orderedPoems: 
   }
 }
 
+export const updateCollection = async (
+  id: number,
+  title: string,
+  description: string
+): Promise<void> => {
+  const db = await dbPromise;
+  await db.runAsync(
+    'UPDATE collections SET title = ?, description = ? WHERE id = ?',
+    [title.trim() || 'Untitled', description.trim(), id]
+  );
+};
+
+// --- Settings (Dark Mode Persistence) ---
+
+export const getSetting = async (key: string): Promise<string | null> => {
+  const db = await dbPromise;
+  const row = await db.getFirstAsync<{ value: string }>(
+    'SELECT value FROM settings WHERE key = ?',
+    [key]
+  );
+  return row ? row.value : null;
+};
+
+export const setSetting = async (key: string, value: string): Promise<void> => {
+  const db = await dbPromise;
+  await db.runAsync(
+    'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+    [key, value]
+  );
+};
+
+// --- Full JSON Backup & Restore ---
+
+export interface BackupData {
+  version: number;
+  exported_at: string;
+  poems: Poem[];
+  collections: Collection[];
+  collection_poems: { collection_id: number; poem_id: number; poem_order: number }[];
+}
+
+export const exportBackupData = async (): Promise<string> => {
+  const db = await dbPromise;
+  const poems = await db.getAllAsync<Poem>('SELECT * FROM poems');
+  const collections = await db.getAllAsync<Collection>('SELECT * FROM collections');
+  const collection_poems = await db.getAllAsync<any>('SELECT * FROM collection_poems');
+
+  const payload = {
+    version: 1,
+    exported_at: new Date().toISOString(),
+    poems,
+    collections,
+    collection_poems,
+  };
+
+  return JSON.stringify(payload, null, 2);
+};
+
+export const importBackupData = async (jsonString: string): Promise<{ poems: number; collections: number }> => {
+  const db = await dbPromise;
+  const data: BackupData = JSON.parse(jsonString);
+  if (!data || !Array.isArray(data.poems) || !Array.isArray(data.collections)) {
+    throw new Error('Invalid backup format');
+  }
+
+  const poemIdMap = new Map<number, number>();
+  const colIdMap = new Map<number, number>();
+
+  for (const p of data.poems) {
+    const res = await db.runAsync(
+      'INSERT INTO poems (title, content, is_fragment, created_at) VALUES (?, ?, ?, ?)',
+      [p.title || 'Untitled', p.content || '', p.is_fragment ? 1 : 0, p.created_at || new Date().toISOString()]
+    );
+    poemIdMap.set(p.id, res.lastInsertRowId);
+  }
+
+  for (const c of data.collections) {
+    const res = await db.runAsync(
+      'INSERT INTO collections (title, description) VALUES (?, ?)',
+      [c.title || 'Untitled', c.description || '']
+    );
+    colIdMap.set(c.id, res.lastInsertRowId);
+  }
+
+  if (Array.isArray(data.collection_poems)) {
+    for (const cp of data.collection_poems) {
+      const newColId = colIdMap.get(cp.collection_id);
+      const newPoemId = poemIdMap.get(cp.poem_id);
+      if (newColId && newPoemId) {
+        await db.runAsync(
+          'INSERT OR IGNORE INTO collection_poems (collection_id, poem_id, poem_order) VALUES (?, ?, ?)',
+          [newColId, newPoemId, cp.poem_order ?? 0]
+        );
+      }
+    }
+  }
+
+  return { poems: data.poems.length, collections: data.collections.length };
+};

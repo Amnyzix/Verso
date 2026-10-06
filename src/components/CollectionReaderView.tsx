@@ -1,44 +1,79 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  View, Text, TouchableOpacity, FlatList, ScrollView,
+  View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
   Modal, Pressable, Alert, useWindowDimensions, BackHandler,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Poem, Collection, getCollectionPoems, addPoemToCollection,
   removePoemFromCollection, updateCollectionOrder, deleteCollection,
+  updateCollection,
 } from '../db';
-import { shareCollectionAsTxt } from '../exportTxt';
+import { shareCollectionAsTxt, shareCollectionAsPdf } from '../exportTxt';
 import { Theme, getStyles } from '../theme';
 
 interface Props {
   collection: Collection;
   allPoems: Poem[];
+  initialPage: number;
+  onPageChange: (page: number) => void;
   onClose: () => Promise<void>;
   onDataChange: () => Promise<void>;
+  onEditPoem: (poem: Poem) => void;
+  onUpdateCollectionMeta: (updated: Collection) => void;
   theme: Theme;
 }
 
+type ReaderItem =
+  | { type: 'cover'; id: string }
+  | { type: 'poem'; id: string; poem: Poem };
+
 export default function CollectionReaderView({
-  collection, allPoems, onClose, onDataChange, theme,
+  collection, allPoems, initialPage, onPageChange, onClose, onDataChange,
+  onEditPoem, onUpdateCollectionMeta, theme,
 }: Props) {
   const { width: screenWidth } = useWindowDimensions();
   const styles = useMemo(() => getStyles(theme), [theme]);
-  const readerRef = useRef<FlatList<Poem>>(null);
+  const readerRef = useRef<FlatList<ReaderItem>>(null);
 
   const [collectionPoems, setCollectionPoems] = useState<Poem[]>([]);
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(initialPage);
   const [isManaging, setIsManaging] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+
+  // Modal pour éditer le titre / la préface du recueil
+  const [editMetaVisible, setEditMetaVisible] = useState(false);
+  const [editTitle, setEditTitle] = useState(collection.title);
+  const [editDesc, setEditDesc] = useState(collection.description || '');
 
   const loadPoems = async () => {
     const colPoems = await getCollectionPoems(collection.id);
     setCollectionPoems(colPoems);
   };
 
+  // Recharge les poèmes du recueil (y compris quand on revient de l'éditeur de poème)
   useEffect(() => {
     loadPoems();
-  }, [collection.id]);
+  }, [collection.id, allPoems]);
+
+  // Liste des pages : Page 0 = Couverture, Pages 1..N = Poèmes
+  const readerPages: ReaderItem[] = useMemo(() => {
+    if (collectionPoems.length === 0) return [];
+    return [
+      { type: 'cover', id: 'cover-page' },
+      ...collectionPoems.map((poem) => ({
+        type: 'poem' as const,
+        id: `poem-${poem.id}`,
+        poem,
+      })),
+    ];
+  }, [collectionPoems]);
+
+  // Poème affiché sur la page actuelle (null si on est sur la couverture)
+  const currentPoem =
+    currentPage > 0 && currentPage <= collectionPoems.length
+      ? collectionPoems[currentPage - 1]
+      : null;
 
   useEffect(() => {
     const backSub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -74,20 +109,57 @@ export default function CollectionReaderView({
   };
 
   const goToPage = (pageIndex: number) => {
-    if (pageIndex < 0 || pageIndex >= collectionPoems.length) return;
+    if (pageIndex < 0 || pageIndex >= readerPages.length) return;
     readerRef.current?.scrollToIndex({ index: pageIndex, animated: true });
     setCurrentPage(pageIndex);
+    onPageChange(pageIndex);
   };
 
-  const handleExport = async () => {
+  const handleSaveCollectionMeta = async () => {
+    if (!editTitle.trim()) {
+      Alert.alert('Missing Title', 'Please give your collection a title.');
+      return;
+    }
+    await updateCollection(collection.id, editTitle, editDesc);
+    onUpdateCollectionMeta({
+      ...collection,
+      title: editTitle.trim(),
+      description: editDesc.trim(),
+    });
+    setEditMetaVisible(false);
+    await onDataChange();
+  };
+
+
+const handleExport = async () => {
     setMenuVisible(false);
     if (collectionPoems.length === 0) {
       Alert.alert('Empty Collection', 'Add at least one poem before exporting.');
       return;
     }
-    await shareCollectionAsTxt(collection.id, collection.title);
+    try {
+      await shareCollectionAsTxt(collection.id, collection.title);
+    } catch (err: any) {
+      console.error('Export TXT error:', err);
+      Alert.alert('Export Error', err?.message || String(err));
+    }
   };
 
+  const handleExportPdf = async () => {
+    setMenuVisible(false);
+    if (collectionPoems.length === 0) {
+      Alert.alert('Empty Collection', 'Add at least one poem before exporting.');
+      return;
+    }
+    try {
+      await shareCollectionAsPdf(collection);
+    } catch (err: any) {
+      console.error('Export PDF error:', err);
+      Alert.alert('PDF Export Error', err?.message || String(err));
+    }
+  };
+
+  
   const handleDelete = () => {
     setMenuVisible(false);
     Alert.alert(
@@ -122,6 +194,24 @@ export default function CollectionReaderView({
         </Text>
 
         <View style={styles.headerRightActions}>
+          {/* Bouton rapide d'édition : édite le poème affiché OU la couverture */}
+          {!isManaging && collectionPoems.length > 0 && (
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={() => {
+                if (currentPoem) {
+                  onEditPoem(currentPoem);
+                } else {
+                  setEditTitle(collection.title);
+                  setEditDesc(collection.description || '');
+                  setEditMetaVisible(true);
+                }
+              }}
+            >
+              <Ionicons name="create-outline" size={22} color={theme.text} />
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() => setIsManaging(!isManaging)}
@@ -132,6 +222,7 @@ export default function CollectionReaderView({
               color={theme.text}
             />
           </TouchableOpacity>
+
           <TouchableOpacity style={styles.iconBtn} onPress={() => setMenuVisible(true)}>
             <Ionicons name="ellipsis-vertical" size={22} color={theme.text} />
           </TouchableOpacity>
@@ -222,32 +313,56 @@ export default function CollectionReaderView({
         <View style={{ flex: 1 }}>
           <FlatList
             ref={readerRef}
-            data={collectionPoems}
-            keyExtractor={(item) => item.id.toString()}
+            data={readerPages}
+            keyExtractor={(item) => item.id}
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
+            initialScrollIndex={
+              initialPage < readerPages.length ? initialPage : 0
+            }
             onMomentumScrollEnd={(e) => {
               const page = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
               setCurrentPage(page);
+              onPageChange(page);
             }}
             getItemLayout={(_, index) => ({
               length: screenWidth,
               offset: screenWidth * index,
               index,
             })}
-            renderItem={({ item }) => (
-              <View style={[styles.bookPage, { width: screenWidth }]}>
-                <ScrollView
-                  contentContainerStyle={styles.bookPageScroll}
-                  showsVerticalScrollIndicator={false}
-                >
-                  <Text style={styles.bookPoemTitle}>{item.title}</Text>
-                  <View style={styles.bookDivider} />
-                  <Text style={styles.bookPoemContent}>{item.content}</Text>
-                </ScrollView>
-              </View>
-            )}
+            renderItem={({ item }) => {
+              if (item.type === 'cover') {
+                return (
+                  <View style={[styles.coverPageContainer, { width: screenWidth }]}>
+                    <Text style={styles.coverTitle}>{collection.title}</Text>
+                    <View style={styles.bookDivider} />
+                    {!!collection.description && (
+                      <Text style={styles.coverDescription}>
+                        {collection.description}
+                      </Text>
+                    )}
+                    <Text style={styles.coverMeta}>
+                      {collectionPoems.length}{' '}
+                      {collectionPoems.length === 1 ? 'poem' : 'poems'}
+                    </Text>
+                  </View>
+                );
+              }
+
+              return (
+                <View style={[styles.bookPage, { width: screenWidth }]}>
+                  <ScrollView
+                    contentContainerStyle={styles.bookPageScroll}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    <Text style={styles.bookPoemTitle}>{item.poem.title}</Text>
+                    <View style={styles.bookDivider} />
+                    <Text style={styles.bookPoemContent}>{item.poem.content}</Text>
+                  </ScrollView>
+                </View>
+              );
+            }}
           />
 
           <View style={styles.readerFooter}>
@@ -267,18 +382,20 @@ export default function CollectionReaderView({
             </TouchableOpacity>
 
             <Text style={styles.pageIndicator}>
-              Page {currentPage + 1} of {collectionPoems.length}
+              {currentPage === 0
+                ? 'Cover'
+                : `Poem ${currentPage} of ${collectionPoems.length}`}
             </Text>
 
             <TouchableOpacity
               style={styles.pageNavBtn}
               onPress={() => goToPage(currentPage + 1)}
-              disabled={currentPage === collectionPoems.length - 1}
+              disabled={currentPage === readerPages.length - 1}
             >
               <Text
                 style={[
                   styles.pageNavText,
-                  currentPage === collectionPoems.length - 1 && styles.pageNavDisabled,
+                  currentPage === readerPages.length - 1 && styles.pageNavDisabled,
                 ]}
               >
                 Next
@@ -286,13 +403,14 @@ export default function CollectionReaderView({
               <Ionicons
                 name="chevron-forward"
                 size={20}
-                color={currentPage === collectionPoems.length - 1 ? theme.disabled : theme.text}
+                color={currentPage === readerPages.length - 1 ? theme.disabled : theme.text}
               />
             </TouchableOpacity>
           </View>
         </View>
       )}
 
+      {/* Menu d'options du Recueil (...) */}
       <Modal
         visible={menuVisible}
         transparent
@@ -301,10 +419,32 @@ export default function CollectionReaderView({
       >
         <Pressable style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
           <View style={styles.dropdownMenu}>
-            <TouchableOpacity style={styles.menuItem} onPress={handleExport}>
-              <Ionicons name="share-outline" size={20} color={theme.text} />
-              <Text style={styles.menuItemText}>Export Collection (.txt)</Text>
+            {currentPoem && (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setMenuVisible(false);
+                  onEditPoem(currentPoem);
+                }}
+              >
+                <Ionicons name="create-outline" size={20} color={theme.text} />
+                <Text style={styles.menuItemText}>Edit Current Poem</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setMenuVisible(false);
+                setEditTitle(collection.title);
+                setEditDesc(collection.description || '');
+                setEditMetaVisible(true);
+              }}
+            >
+              <Ionicons name="book-outline" size={20} color={theme.text} />
+              <Text style={styles.menuItemText}>Edit Title / Preface</Text>
             </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {
@@ -314,14 +454,73 @@ export default function CollectionReaderView({
             >
               <Ionicons name="list-outline" size={20} color={theme.text} />
               <Text style={styles.menuItemText}>
-                {isManaging ? 'Read Collection' : 'Edit Poems / Order'}
+                {isManaging ? 'Read Collection' : 'Manage Poems / Order'}
               </Text>
             </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem} onPress={handleExport}>
+              <Ionicons name="share-outline" size={20} color={theme.text} />
+              <Text style={styles.menuItemText}>Export Collection (.txt)</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem} onPress={handleExportPdf}>
+              <Ionicons name="print-outline" size={20} color={theme.text} />
+              <Text style={styles.menuItemText}>Export Book (.pdf)</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.menuItem} onPress={handleDelete}>
               <Ionicons name="trash-outline" size={20} color={theme.danger} />
               <Text style={[styles.menuItemText, styles.deleteText]}>Delete Collection</Text>
             </TouchableOpacity>
           </View>
+        </Pressable>
+      </Modal>
+
+      {/* Modal pour modifier le Titre / Préface du Recueil */}
+      <Modal
+        visible={editMetaVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditMetaVisible(false)}
+      >
+        <Pressable
+          style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}
+          onPress={() => setEditMetaVisible(false)}
+        >
+          <Pressable
+            style={[styles.card, { width: '100%' }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={[styles.cardTitle, { flex: 0, marginBottom: 12 }]}>
+              Edit Collection Cover
+            </Text>
+            <TextInput
+              style={styles.titleInput}
+              placeholder="Collection Title..."
+              placeholderTextColor={theme.textMuted}
+              value={editTitle}
+              onChangeText={setEditTitle}
+            />
+            <TextInput
+              style={[styles.subtitleInput, { minHeight: 80, textAlignVertical: 'top' }]}
+              placeholder="Short description or preface (optional)..."
+              placeholderTextColor={theme.textMuted}
+              value={editDesc}
+              onChangeText={setEditDesc}
+              multiline
+            />
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={() => setEditMetaVisible(false)}
+              >
+                <Text style={{ color: theme.textMuted, fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.primaryBtn} onPress={handleSaveCollectionMeta}>
+                <Text style={styles.primaryBtnText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
         </Pressable>
       </Modal>
     </>

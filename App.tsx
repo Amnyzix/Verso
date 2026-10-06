@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { SafeAreaView, StatusBar } from 'react-native';
-import { initDatabase, getPoems, getCollections, Poem, Collection } from './src/db';
+import { initDatabase, getPoems, getCollections, Poem, Collection, getSetting, setSetting} from './src/db';
 import { lightTheme, darkTheme, getStyles } from './src/theme';
 import HomeView from './src/components/HomeView';
 import PoemEditorView from './src/components/PoemEditorView';
@@ -23,6 +23,7 @@ export default function App() {
   const [editingPoem, setEditingPoem] = useState<Poem | null>(null);
   const [isCreatingCollection, setIsCreatingCollection] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
+  const [readerPage, setReaderPage] = useState(0);
 
   const loadAllData = async () => {
     const [poemsData, collectionsData] = await Promise.all([getPoems(), getCollections()]);
@@ -31,10 +32,23 @@ export default function App() {
   };
 
   useEffect(() => {
-    initDatabase()
-      .then(loadAllData)
-      .catch((err) => console.error('DB Error:', err));
-  }, []);
+      initDatabase()
+        .then(async () => {
+          console.log('Database initialized');
+          const savedTheme = await getSetting('dark_mode');
+          if (savedTheme !== null) {
+            setIsDarkMode(savedTheme === '1');
+          }
+          await loadAllData();
+        })
+        .catch((err) => console.error('DB Error:', err));
+    }, []);
+
+  const handleToggleTheme = async () => {
+      const nextValue = !isDarkMode;
+      setIsDarkMode(nextValue);
+      await setSetting('dark_mode', nextValue ? '1' : '0');
+    };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -61,6 +75,7 @@ export default function App() {
           onCreated={async (newCol) => {
             setIsCreatingCollection(false);
             await loadAllData();
+            setReaderPage(0);
             setSelectedCollection(newCol);
           }}
         />
@@ -68,8 +83,15 @@ export default function App() {
         <CollectionReaderView
           collection={selectedCollection}
           allPoems={poems}
+          initialPage={readerPage}
+          onPageChange={setReaderPage}
           theme={theme}
           onDataChange={loadAllData}
+          onEditPoem={(poem) => {
+            setEditingPoem(poem);
+            setIsWriting(true);
+          }}
+          onUpdateCollectionMeta={(updatedCol) => setSelectedCollection(updatedCol)}
           onClose={async () => {
             setSelectedCollection(null);
             await loadAllData();
@@ -82,7 +104,8 @@ export default function App() {
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           isDarkMode={isDarkMode}
-          onToggleTheme={() => setIsDarkMode(!isDarkMode)}
+          onToggleTheme={handleToggleTheme}
+          onDataRestored={loadAllData}
           onNewPoem={() => {
             setEditingPoem(null);
             setIsWriting(true);
@@ -92,7 +115,9 @@ export default function App() {
             setIsWriting(true);
           }}
           onNewCollection={() => setIsCreatingCollection(true)}
-          onOpenCollection={(col) => setSelectedCollection(col)}
+          onOpenCollection={(col) =>{
+            setReaderPage(0);
+            setSelectedCollection(col);}}
           theme={theme}
         />
       )}
