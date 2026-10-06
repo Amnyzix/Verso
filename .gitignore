@@ -41,4 +41,5 @@ yarn-error.*
 /android
 
 
-build.bat
+build.sh
+AGENTS.md
